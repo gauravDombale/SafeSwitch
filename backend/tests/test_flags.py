@@ -63,3 +63,29 @@ def test_delete_flag(client):
     # Verify it is deleted
     all_res_after = client.get('/api/flags')
     assert len(all_res_after.get_json()) == 0
+
+
+def test_reject_missing_json_content_type(client):
+    response = client.post('/api/flags')
+    assert response.status_code == 415
+    data = response.get_json()
+    assert data["error"] == "Unsupported Media Type"
+
+
+def test_reject_malformed_json_body(client):
+    response = client.post(
+        '/api/flags',
+        data='{bad',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "Bad Request"
+
+
+def test_reject_non_object_json_payload(client):
+    response = client.post('/api/flags', json=["invalid_payload"])
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["error"] == "Bad Request"
+    assert "JSON body must be an object." in data["message"]

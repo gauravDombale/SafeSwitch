@@ -4,6 +4,7 @@ import uuid
 from flask import Flask, jsonify, request, g, has_request_context
 from flask_cors import CORS
 from pydantic import ValidationError
+from werkzeug.exceptions import HTTPException
 from .models import db
 from .routes import flag_bp
 from .exceptions import DomainError
@@ -52,6 +53,11 @@ def create_app(test_config=None):
     def handle_domain_error(e):
         app.logger.warning(f"Domain Rule Triggered: {e.message}")
         return jsonify({"error": e.message}), e.status_code
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        app.logger.warning(f"HTTP Exception Triggered: {e.code} {e.description}")
+        return jsonify({"error": e.name, "message": e.description}), e.code
 
     @app.errorhandler(Exception)
     def handle_general_exception(e):

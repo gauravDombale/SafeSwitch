@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
 import type { FeatureFlag } from './api';
 import { flagService } from './api';
 import { Shield, Plus, ToggleLeft, ToggleRight, Trash2, Zap, AlertCircle } from 'lucide-react';
@@ -11,6 +12,7 @@ function App() {
   // Form State
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  type ApiErrorBody = { error?: string };
 
   const loadFlags = async () => {
     try {
@@ -18,7 +20,7 @@ function App() {
       const data = await flagService.getFlags();
       setFlags(data);
       setError(null);
-    } catch (err: any) {
+    } catch {
       setError("Failed to connect to SafeSwitch API.");
     } finally {
       setLoading(false);
@@ -37,8 +39,8 @@ function App() {
       setName('');
       setDesc('');
       await loadFlags();
-    } catch (err: any) {
-      if (err.response?.data?.error) {
+    } catch (err: unknown) {
+      if (isAxiosError<ApiErrorBody>(err) && err.response?.data?.error) {
         setError(err.response.data.error);
       } else {
         setError("Error creating flag");
@@ -51,7 +53,7 @@ function App() {
       await flagService.toggleFlag(id, !current);
       setFlags(flags.map(f => f.id === id ? { ...f, is_enabled: !current } : f));
       setError(null);
-    } catch (err) {
+    } catch {
       setError("Error toggling flag");
     }
   };
@@ -62,7 +64,7 @@ function App() {
         await flagService.deleteFlag(id);
         setFlags(flags.filter(f => f.id !== id));
       }
-    } catch (err) {
+    } catch {
       setError("Error deleting flag");
     }
   };
