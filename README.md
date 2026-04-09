@@ -2,6 +2,46 @@
 
 A highly resilient, schema-driven Feature Toggle API built entirely targeting structure, simplicity, and interface safety.
 
+## Architecture Overview
+
+```mermaid
+flowchart TD
+    %% Define Nodes
+    Client["🎨 React Vite UI\n(Axios / TS Interfaces)"]
+    API["🌐 Flask API Routes\n(Transport Layer)"]
+    Validation["🛡️ Pydantic Schemas\n(Payload Validation)"]
+    Logic["⚙️ FeatureFlagService\n(Business Logic)"]
+    DB[("🗄️ SQLite Database\n(SQLAlchemy 2.0 ORM)")]
+    Logs["📝 Custom JSON Logger\n(X-Request-Id Tracing)"]
+    Exceptions["⚠️ Domain Exceptions\n(Global Error Handler)"]
+
+    %% Define Flow
+    Client -- "HTTP Requests" --> API
+    API -- "Raw JSON" --> Validation
+    Validation -- "Schema Reject (400)" --> Exceptions
+    Validation -- "Validated Payload" --> Logic
+    Logic -- "Transactions" --> DB
+    
+    %% Error Flow
+    Logic -- "FlagNotFoundError / Duplicate" --> Exceptions
+    Exceptions -- "Formatted JSON Error" --> Client
+    
+    %% Implicit Subsystems
+    API -. "Records State" .-> Logs
+    Logic -. "Records Changes" .-> Logs
+    Exceptions -. "Traps Crashes & Logs Context" .-> Logs
+
+    %% Styling
+    classDef logic fill:#1e40af,color:#fff,stroke:#3b82f6
+    classDef db fill:#065f46,color:#fff,stroke:#10b981
+    classDef ui fill:#9d174d,color:#fff,stroke:#ec4899
+    
+    class Client ui
+    class Logic logic
+    class DB db
+```
+
+
 ## Key Technical Decisions
 
 1. **Python version downgrade for "Zero-Setup" evaluation**
