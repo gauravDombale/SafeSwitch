@@ -1,0 +1,30 @@
+# FlagGuard/SafeSwitch Global Gitignore
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/.eslintcache
+
+# Mac
+.DS_Store
+
+# Python
+backend/venv/
+backend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Databases
+*.sqlite
+*.sqlite3
+backend/instance/
+instance/
+flags.db
+
+# IDEs
+.vscode/
+.idea/
