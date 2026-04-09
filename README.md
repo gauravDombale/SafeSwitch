@@ -9,7 +9,7 @@ flowchart TD
     %% Define Nodes
     Client["🎨 React Vite UI\n(Axios / TS Interfaces)"]
     Components["🧩 FlagCard / CreateFlagForm\n(Isolated UI Components)"]
-    API["🌐 Flask API Routes\n(Transport Layer Only)"]
+    API["🌐 Flask App + Routes\n(Transport & Request Lifecycle)"]
     Validation["🛡️ Pydantic Schemas\n(Boundary Validation)"]
     Logic["⚙️ FeatureFlagService\n(Business Logic)"]
     DB[("🗄️ SQLite + Alembic\n(SQLAlchemy 2.0 ORM)")]
@@ -29,7 +29,7 @@ flowchart TD
     Exceptions -- "Formatted JSON Error" --> Client
 
     %% Implicit Subsystems
-    API -. "Records State" .-> Logs
+    API -. "Assigns Request-Id per Request" .-> Logs
     Logic -. "Records Changes" .-> Logs
     Exceptions -. "Traps Crashes & Logs Context" .-> Logs
 
