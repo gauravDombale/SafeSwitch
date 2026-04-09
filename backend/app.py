@@ -1,7 +1,7 @@
 import logging
 import json
 import uuid
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, has_request_context
 from flask_cors import CORS
 from pydantic import ValidationError
 from .models import db
@@ -14,7 +14,7 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "message": record.getMessage(),
             "logger": record.name,
-            "request_id": getattr(g, "request_id", "N/A")
+            "request_id": getattr(g, "request_id", "N/A") if has_request_context() else "SYSTEM"
         }
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)
