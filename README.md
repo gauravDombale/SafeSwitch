@@ -48,13 +48,13 @@ flowchart TD
    While Python 3.14 was conceptually targeted, `pydantic-core` lacks ARM OS-X pre-compiled wheels for newer Python releases without forcing the reviewer to install a Rust toolchain. We fallback accurately onto Python 3.9 stable to guarantee execution.
 
 2. **Domain-Driven Exception Handlers**
-   Instead of writing `try/except` mapping inside HTTP Routes or using Go-style tuples `(value, error_type)`, we defined centralized Domain Exceptions (`app.exceptions.DomainError`). The HTTP layer seamlessly maps these via a single Global Error Handler to `400` or `409` JSON boundaries. 
+   Instead of writing `try/except` mapping inside HTTP Routes or using Go-style tuples `(value, error_type)`, we defined centralized Domain Exceptions (`app.exceptions.DomainError`) and HTTP exception mapping. The HTTP layer maps failures through global handlers to consistent JSON boundaries (`400/404/409/415`).
 
 3. **Interface Safety with Pydantic 2.x**
    Pydantic validates boundaries precisely. Bad JSON yields a perfect `400 Bad Request` citing correct field boundaries natively. 
 
 4. **10/10 Observability & UI Verification**
-   - **Structured Logging:** Implemented native `CustomJSONFormatter` to inject `X-Request-Id` headers so tracing in distributed systems is completely transparent.
+   - **Structured Logging:** Implemented `CustomJSONFormatter` that logs `request_id` from `X-Request-Id` when provided, or generates one per request for traceability.
    - **Frontend Vitest:** Built a CI-ready component testing layer using `jsdom` + `vitest` covering regression overlaps.
 
 ## Known Limitations & Future Architecture
@@ -71,13 +71,13 @@ A Senior architecture understands its limits. As SafeSwitch scales, we must addr
 python3 -m venv backend/venv
 source backend/venv/bin/activate
 pip install -r backend/requirements.txt
-flask --app backend/app run --port 8000
+flask --app backend.app:create_app run --port 8000
 ```
 
 ### 2. Run the Test Suites
 ```bash
 # Backend Test Check (In backend active env):
-PYTHONPATH=. pytest backend/tests -v
+python -m pytest backend/tests -v
 
 # Frontend Verification Check (In frontend folder):
 npm run test

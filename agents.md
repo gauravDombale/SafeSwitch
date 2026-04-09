@@ -1,15 +1,40 @@
 # AI Guidance File (agents.md)
 
-This section highlights the prompts, context structures, and operational constraints given to the AI during the development of FlagGuard.
+This file documents the guidance used while building **SafeSwitch** for the assessment.
 
-## System Prompt Context
-The AI was provided with clear guidelines prioritizing system correctness, simplicity, and safety over feature-count.
+## Goal and Priorities
+The AI was instructed to optimize for correctness, simplicity, and safe interfaces over feature count or visual polish.
 
-- **Stack Guidelines**: Strictly adhered to Python 3.9 (System Default / LTS Support Equivalent locally), Flask 3.1, SQLite, SQLAlchemy 2.0, Pydantic 2.x, Node 24 (LTS), React 19, and TailwindCSS 4.
-- **Strict Interfaces**: Pydantic was leveraged as an interface boundary. The AI was prompted to ensure `ValidationError` boundaries on the API were consistently wrapped.
-- **Resilience Strategy**: The AI was guided to decouple data layer logic (`services.py`) from transport layers (`routes.py`). 
+## Stack Constraints
+- Backend: Python 3.9, Flask 3.1, SQLAlchemy 2.0, SQLite, Pydantic 2.x.
+- Frontend: React 19 + TypeScript + Vite + TailwindCSS 4.
+- Tooling: pytest (backend), Vitest + ESLint + TypeScript build (frontend).
 
-## AI Behavioral Rules Enforced
-1. **No direct bash file manipulation**: AI was restricted from using `cat`, `sed`, or raw `echo` inside the shell. Standardized serialization tools (AST modifiers, or artifact writers) had to be utilized. 
-2. **Predictable Code execution**: Code changes were implemented iteratively and verified continuously by a robust test suite (`pytest`) initialized simultaneously with code generation.
-3. **Execution Safety**: Unsafe system dependencies were scrutinized, which led to a pivot from Python 3.14 (lacking pre-compiled core wheels for Pydantic on the ARM environment without a Rust toolchain) back to a stable 3.9.x environment to ensure an evaluated user could reproduce the execution out-of-the-box (Zero-Setup policy).
+## Architecture Guidance Given to AI
+- Keep transport and business logic separated:
+  - `backend/routes.py` handles HTTP I/O only.
+  - `backend/services.py` contains flag business logic and DB-side operations.
+- Use schema-first request validation at boundaries (`backend/schemas.py` with Pydantic).
+- Keep errors explicit and centralized:
+  - Domain errors in `backend/exceptions.py`.
+  - Global error mapping in `backend/app.py` (Pydantic/domain/HTTP/unhandled exceptions).
+- Prefer simple data flow over abstractions that hide behavior.
+
+## Behavioral Rules for AI Changes
+1. Preserve existing behavior unless changing it is intentional and test-backed.
+2. Add or update tests for every bug fix and interface change.
+3. Avoid broad refactors not required by the task.
+4. Keep dependencies stable and reproducible for evaluator setup.
+5. Treat AI-generated code as draft code that must be reviewed before acceptance.
+
+## Verification Protocol Applied
+- Backend checks:
+  - `backend/venv/bin/python -m pytest backend/tests -v`
+- Frontend checks:
+  - `npm run lint`
+  - `npm run test`
+  - `npm run build`
+- Manual API edge-case verification was performed for malformed/missing JSON request bodies to confirm non-500 responses.
+
+## Execution Safety Note
+Python was kept on **3.9.x** for reliable local setup and compatibility in this environment.
