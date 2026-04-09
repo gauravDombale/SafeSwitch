@@ -12,36 +12,17 @@ def get_flags():
 
 @flag_bp.route('/flags', methods=['POST'])
 def create_flag():
-    try:
-        data = FeatureFlagCreate(**request.get_json())
-    except ValidationError as e:
-        return jsonify({"error": "Validation Error", "messages": e.errors()}), 400
-
-    flag, error = FeatureFlagService.create_flag(data)
-    if error:
-        return jsonify({"error": error}), 409
-        
+    data = FeatureFlagCreate(**request.get_json())
+    flag = FeatureFlagService.create_flag(data)
     return jsonify(flag.to_dict()), 201
 
 @flag_bp.route('/flags/<int:flag_id>', methods=['PATCH'])
 def toggle_flag(flag_id):
-    try:
-        data = FeatureFlagUpdate(**request.get_json())
-    except ValidationError as e:
-        return jsonify({"error": "Validation Error", "messages": e.errors()}), 400
-
-    flag, error = FeatureFlagService.toggle_flag(flag_id, data)
-    if error:
-        # Simple distinction between not found and internal errors
-        code = 404 if "not found" in error else 500
-        return jsonify({"error": error}), code
-        
+    data = FeatureFlagUpdate(**request.get_json())
+    flag = FeatureFlagService.toggle_flag(flag_id, data)
     return jsonify(flag.to_dict()), 200
 
 @flag_bp.route('/flags/<int:flag_id>', methods=['DELETE'])
 def delete_flag(flag_id):
-    success = FeatureFlagService.delete_flag(flag_id)
-    if not success:
-        return jsonify({"error": "Flag not found or could not be deleted"}), 404
-        
+    FeatureFlagService.delete_flag(flag_id)
     return '', 204

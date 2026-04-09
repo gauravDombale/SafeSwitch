@@ -1,7 +1,9 @@
+from __future__ import annotations
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 from .models import db, FeatureFlag
 from .schemas import FeatureFlagCreate, FeatureFlagUpdate
+from .exceptions import FlagAlreadyExistsError, FlagNotFoundError
 from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
@@ -12,11 +14,14 @@ class FeatureFlagService:
         return FeatureFlag.query.all()
 
     @staticmethod
-    def get_flag_by_id(flag_id: int) -> Optional[FeatureFlag]:
-        return db.session.get(FeatureFlag, flag_id)
+    def get_flag_by_id(flag_id: int) -> FeatureFlag:
+        flag = db.session.get(FeatureFlag, flag_id)
+        if not flag:
+            raise FlagNotFoundError()
+        return flag
 
     @staticmethod
-    def create_flag(data: FeatureFlagCreate) -> Tuple[Optional[FeatureFlag], Optional[str]]:
+    def create_flag(data: FeatureFlagCreate) -> FeatureFlag:
         flag = FeatureFlag(
             name=data.name,
             description=data.description,
@@ -26,45 +31,40 @@ class FeatureFlagService:
             db.session.add(flag)
             db.session.commit()
             logger.info(f"Created new feature flag: {data.name}")
-            return flag, None
+            return flag
         except IntegrityError:
             db.session.rollback()
             logger.warning(f"Attempted to create duplicate flag: {data.name}")
-            return None, "A flag with this name already exists."
+            raise FlagAlreadyExistsError(data.name)
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error creating flag: {e}")
-            return None, "An unexpected error occurred."
+            raise
 
     @staticmethod
-    def toggle_flag(flag_id: int, data: FeatureFlagUpdate) -> Tuple[Optional[FeatureFlag], Optional[str]]:
+    def toggle_flag(flag_id: int, data: FeatureFlagUpdate) -> FeatureFlag:
         flag = FeatureFlagService.get_flag_by_id(flag_id)
-        if not flag:
-            return None, "Flag not found."
             
         old_state = flag.is_enabled
         flag.is_enabled = data.is_enabled
         try:
             db.session.commit()
             logger.info(f"Toggled flag '{flag.name}' from {old_state} to {flag.is_enabled}")
-            return flag, None
+            return flag
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error updating flag: {e}")
-            return None, "An unexpected error occurred."
+            raise
 
     @staticmethod
-    def delete_flag(flag_id: int) -> bool:
+    def delete_flag(flag_id: int) -> None:
         flag = FeatureFlagService.get_flag_by_id(flag_id)
-        if not flag:
-            return False
             
         try:
             db.session.delete(flag)
             db.session.commit()
             logger.info(f"Deleted flag '{flag.name}'")
-            return True
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error deleting flag: {e}")
-            return False
+            raise

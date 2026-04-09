@@ -1,13 +1,35 @@
 import logging
-from flask import Flask, jsonify
+import json
+import uuid
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pydantic import ValidationError
 from .models import db
 from .routes import flag_bp
+from .exceptions import DomainError
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_record = {
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "logger": record.name,
+            "request_id": getattr(g, "request_id", "N/A")
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+def setup_logging():
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logging.root.handlers = [handler]
+    logging.root.setLevel(logging.INFO)
 
 def create_app(test_config=None):
+    setup_logging()
     app = Flask(__name__)
-    CORS(app)  # Enable CORS for the React frontend
+    CORS(app)
     
     if test_config is None:
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flags.db'
@@ -15,23 +37,25 @@ def create_app(test_config=None):
     else:
         app.config.update(test_config)
 
-    # Initialize extensions
     db.init_app(app)
-    
-    # Register blueprints
     app.register_blueprint(flag_bp, url_prefix='/api')
 
-    # Setup Logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    @app.before_request
+    def assign_req_id():
+        g.request_id = request.headers.get("X-Request-Id", str(uuid.uuid4()))
 
-    # Global Error Handlers for interface safety
     @app.errorhandler(ValidationError)
     def handle_pydantic_error(e):
         return jsonify({"error": "Validation Error", "messages": e.errors()}), 400
 
+    @app.errorhandler(DomainError)
+    def handle_domain_error(e):
+        app.logger.warning(f"Domain Rule Triggered: {e.message}")
+        return jsonify({"error": e.message}), e.status_code
+
     @app.errorhandler(Exception)
     def handle_general_exception(e):
-        app.logger.error(f"Unhandled Exception: {e}")
+        app.logger.error(f"Unhandled Exception: {e}", exc_info=True)
         return jsonify({"error": "Internal Server Error"}), 500
 
     with app.app_context():
