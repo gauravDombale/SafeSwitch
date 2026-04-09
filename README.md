@@ -1,6 +1,6 @@
 # SafeSwitch - Senior SE Assessment
 
-A highly resilient, schema-driven Feature Toggle API built entirely targeting structure, simplicity, and interface safety.
+A highly resilient, schema-driven Feature Toggle API built targeting structure, simplicity, and interface safety above all else.
 
 ## Architecture Overview
 
@@ -8,24 +8,26 @@ A highly resilient, schema-driven Feature Toggle API built entirely targeting st
 flowchart TD
     %% Define Nodes
     Client["🎨 React Vite UI\n(Axios / TS Interfaces)"]
-    API["🌐 Flask API Routes\n(Transport Layer)"]
-    Validation["🛡️ Pydantic Schemas\n(Payload Validation)"]
+    Components["🧩 FlagCard / CreateFlagForm\n(Isolated UI Components)"]
+    API["🌐 Flask API Routes\n(Transport Layer Only)"]
+    Validation["🛡️ Pydantic Schemas\n(Boundary Validation)"]
     Logic["⚙️ FeatureFlagService\n(Business Logic)"]
-    DB[("🗄️ SQLite Database\n(SQLAlchemy 2.0 ORM)")]
-    Logs["📝 Custom JSON Logger\n(X-Request-Id Tracing)"]
+    DB[("🗄️ SQLite + Alembic\n(SQLAlchemy 2.0 ORM)")]
+    Logs["📝 Custom JSON Logger\n(Timestamp + X-Request-Id)"]
     Exceptions["⚠️ Domain Exceptions\n(Global Error Handler)"]
 
     %% Define Flow
-    Client -- "HTTP Requests" --> API
+    Client -- "Renders" --> Components
+    Components -- "HTTP Requests" --> API
     API -- "Raw JSON" --> Validation
     Validation -- "Schema Reject (400)" --> Exceptions
     Validation -- "Validated Payload" --> Logic
     Logic -- "Transactions" --> DB
-    
+
     %% Error Flow
     Logic -- "FlagNotFoundError / Duplicate" --> Exceptions
     Exceptions -- "Formatted JSON Error" --> Client
-    
+
     %% Implicit Subsystems
     API -. "Records State" .-> Logs
     Logic -. "Records Changes" .-> Logs
@@ -35,8 +37,8 @@ flowchart TD
     classDef logic fill:#1e40af,color:#fff,stroke:#3b82f6
     classDef db fill:#065f46,color:#fff,stroke:#10b981
     classDef ui fill:#9d174d,color:#fff,stroke:#ec4899
-    
-    class Client ui
+
+    class Client,Components ui
     class Logic logic
     class DB db
 ```
@@ -44,25 +46,32 @@ flowchart TD
 
 ## Key Technical Decisions
 
-1. **Python version downgrade for "Zero-Setup" evaluation**
-   While Python 3.14 was conceptually targeted, `pydantic-core` lacks ARM OS-X pre-compiled wheels for newer Python releases without forcing the reviewer to install a Rust toolchain. We fallback accurately onto Python 3.9 stable to guarantee execution.
+1. **Python 3.9 for Zero-Setup Evaluation**
+   `pydantic-core` lacks ARM macOS pre-compiled wheels for Python 3.12+, which would force the reviewer to install a Rust toolchain from scratch. Python 3.9 stable is used to guarantee a `pip install` that just works.
 
-2. **Domain-Driven Exception Handlers**
-   Instead of writing `try/except` mapping inside HTTP Routes or using Go-style tuples `(value, error_type)`, we defined centralized Domain Exceptions (`app.exceptions.DomainError`) and HTTP exception mapping. The HTTP layer maps failures through global handlers to consistent JSON boundaries (`400/404/409/415`).
+2. **Domain-Driven Exception Handling**
+   Instead of scattering `try/except` inside HTTP routes, all domain errors inherit from `DomainError` in `backend/exceptions.py`. A single global error handler in `app.py` maps every class of failure — Pydantic validation, domain rules, HTTP exceptions, and unhandled crashes — to consistent JSON responses (`400/404/409/415/500`). No route touches error formatting.
 
-3. **Interface Safety with Pydantic 2.x**
-   Pydantic validates boundaries precisely. Bad JSON yields a perfect `400 Bad Request` citing correct field boundaries natively. 
+3. **Schema-First Interface Safety (Pydantic 2.x)**
+   All write boundaries are enforced by Pydantic before any business logic runs. The `name` field carries both length constraints and a strict regex pattern (`^[a-z0-9_-]+$`) — rejecting whitespace-only strings, uppercase letters, and special characters at the schema layer, not the service layer. Responses are serialized through `FeatureFlagResponse` (not the ORM's `to_dict`), keeping input and output schemas independently versioned.
 
-4. **10/10 Observability & UI Verification**
-   - **Structured Logging:** Implemented `CustomJSONFormatter` that logs `request_id` from `X-Request-Id` when provided, or generates one per request for traceability.
-   - **Frontend Vitest:** Built a CI-ready component testing layer using `jsdom` + `vitest` covering regression overlaps.
+4. **Alembic for Safe Schema Evolution**
+   `db.create_all()` is kept for test bootstrapping but is not the migration strategy. Alembic is wired to `backend.models.Base.metadata` for autogenerate support — any model change generates a versioned, reviewable migration file. The initial schema is committed as `migrations/versions/`.
+
+5. **Structured, Traceable Logging**
+   Every log line is emitted as JSON with `timestamp`, `level`, `message`, `logger`, and `request_id`. The `request_id` is pulled from the `X-Request-Id` header if provided, or generated via `uuid4()` per request. This makes every log line correlatable across distributed systems or API gateways without any post-processing.
+
+6. **Isolated UI Components**
+   The React frontend separates state management (`App.tsx`) from rendering (`FlagCard`, `CreateFlagForm`). Each component owns only what it needs — `CreateFlagForm` manages its own form state locally; `App.tsx` owns only flags list, loading, and error state. This mirrors the backend's separation of transport from logic.
 
 ## Known Limitations & Future Architecture
 
-A Senior architecture understands its limits. As SafeSwitch scales, we must address:
-- **Persistence limits:** SQLite is amazing for single-tenant evaluations but suffers fatal DB locking under heavy concurrent writes. Moving to Postgres fixes this.
-- **Cache Invalidation:** Feature toggles are heavily read-biased. Adding Redis caching around `FeatureFlagService.get_all_flags()` will drastically lower DB hits.
-- **Micro-Environment Support:** Safeswitch is currently globally scoped. The next major schema update requires adding multi-tenancy `environment_id: str` flags mapping to `{production, staging, uat}` spaces.
+A senior architecture understands its limits. As SafeSwitch scales:
+
+- **Persistence:** SQLite cannot handle concurrent writes at scale. The next step is Postgres with a connection pool (e.g., `pg8000` + `SQLAlchemy`). The Alembic setup makes this a config-only change.
+- **Caching:** Feature flags are read-heavy. Adding Redis in front of `FeatureFlagService.get_all_flags()` would drastically reduce DB load with a simple TTL invalidation strategy.
+- **Multi-tenancy:** SafeSwitch is globally scoped. The next schema evolution adds `environment_id: str` to `FeatureFlag`, mapping flags to `{production, staging, uat}` namespaces. Alembic makes this a single `alembic revision --autogenerate` away.
+- **Authentication:** The API is currently open. Production use requires flag-scoped API keys or OAuth2 token validation at the route layer.
 
 ## How to Run Locally
 
@@ -74,30 +83,35 @@ pip install -r backend/requirements.txt
 flask --app backend.app:create_app run --port 8000
 ```
 
-### 2. Run Database Migrations (Alembic)
+### 2. Start the Frontend Dashboard
 ```bash
-# Apply all pending migrations to the database
-alembic upgrade head
-
-# After changing backend/models.py, generate a new migration automatically:
-alembic revision --autogenerate -m "describe_your_change"
-alembic upgrade head
-```
-
-### 3. Run the Test Suites
-```bash
-# Backend Test Check (In backend active env):
-python -m pytest backend/tests -v
-
-# Frontend Verification Check (In frontend folder):
-npm run test
-```
-
-### 3. Run the Frontend Dashboard
-```bash
-# In an open frontend folder terminal:
+# In a separate terminal, inside the frontend/ folder:
 npm install
 npm run dev
 ```
 
-Visit `http://localhost:5173` to safely toggle states!
+Visit `http://localhost:5173` to use the dashboard.
+
+### 3. Run Database Migrations (Alembic)
+```bash
+# Apply all pending migrations (run from project root with venv active):
+alembic upgrade head
+
+# After any change to backend/models.py:
+alembic revision --autogenerate -m "describe_your_change"
+alembic upgrade head
+
+# Verify the database is at the latest revision:
+alembic check
+```
+
+### 4. Run the Test Suites
+```bash
+# Backend (from project root, venv active):
+python -m pytest backend/tests -v
+
+# Frontend (from frontend/ folder):
+npm run lint
+npm run test
+npm run build
+```
