@@ -1,6 +1,7 @@
 import logging
 import json
 import uuid
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request, g, has_request_context
 from flask_cors import CORS
 from pydantic import ValidationError
@@ -12,6 +13,7 @@ from .exceptions import DomainError
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "message": record.getMessage(),
             "logger": record.name,

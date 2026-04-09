@@ -2,17 +2,16 @@ import { useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import type { FeatureFlag } from './api';
 import { flagService } from './api';
-import { Shield, Plus, ToggleLeft, ToggleRight, Trash2, Zap, AlertCircle } from 'lucide-react';
+import { Shield, Zap, AlertCircle } from 'lucide-react';
+import { FlagCard } from './components/FlagCard';
+import { CreateFlagForm } from './components/CreateFlagForm';
+
+type ApiErrorBody = { error?: string };
 
 function App() {
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Form State
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  type ApiErrorBody = { error?: string };
 
   const loadFlags = async () => {
     try {
@@ -21,7 +20,7 @@ function App() {
       setFlags(data);
       setError(null);
     } catch {
-      setError("Failed to connect to SafeSwitch API.");
+      setError('Failed to connect to SafeSwitch API.');
     } finally {
       setLoading(false);
     }
@@ -31,19 +30,15 @@ function App() {
     loadFlags();
   }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleCreate = async (name: string, description: string) => {
     try {
-      await flagService.createFlag({ name, description: desc });
-      setName('');
-      setDesc('');
+      await flagService.createFlag({ name, description });
       await loadFlags();
     } catch (err: unknown) {
       if (isAxiosError<ApiErrorBody>(err) && err.response?.data?.error) {
         setError(err.response.data.error);
       } else {
-        setError("Error creating flag");
+        setError('Error creating flag');
       }
     }
   };
@@ -51,21 +46,20 @@ function App() {
   const handleToggle = async (id: number, current: boolean) => {
     try {
       await flagService.toggleFlag(id, !current);
-      setFlags(flags.map(f => f.id === id ? { ...f, is_enabled: !current } : f));
+      setFlags((prev) => prev.map((f) => (f.id === id ? { ...f, is_enabled: !current } : f)));
       setError(null);
     } catch {
-      setError("Error toggling flag");
+      setError('Error toggling flag');
     }
   };
 
   const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this feature flag?')) return;
     try {
-      if (confirm("Are you sure you want to delete this feature flag?")) {
-        await flagService.deleteFlag(id);
-        setFlags(flags.filter(f => f.id !== id));
-      }
+      await flagService.deleteFlag(id);
+      setFlags((prev) => prev.filter((f) => f.id !== id));
     } catch {
-      setError("Error deleting flag");
+      setError('Error deleting flag');
     }
   };
 
@@ -90,47 +84,10 @@ function App() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Create Form */}
           <div className="md:col-span-1">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-neutral-400" />
-                New Flag
-              </h2>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2">Flag Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                    placeholder="e.g. new_dashboard"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2">Description <span className="opacity-50">(optional)</span></label>
-                  <input
-                    type="text"
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    placeholder="What does this protect?"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!name}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  Create Flag
-                </button>
-              </form>
-            </div>
+            <CreateFlagForm onSubmit={handleCreate} />
           </div>
 
-          {/* List display */}
           <div className="md:col-span-2 space-y-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Zap className="w-5 h-5 text-neutral-400" />
@@ -139,8 +96,8 @@ function App() {
 
             {loading ? (
               <div className="animate-pulse space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-20 bg-neutral-900 border border-neutral-800 rounded-xl"></div>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-20 bg-neutral-900 border border-neutral-800 rounded-xl" />
                 ))}
               </div>
             ) : flags.length === 0 ? (
@@ -152,39 +109,12 @@ function App() {
             ) : (
               <div className="space-y-3">
                 {flags.map((flag) => (
-                  <div 
-                    key={flag.id} 
-                    className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex items-center justify-between transition-all hover:border-neutral-700 group"
-                  >
-                    <div className="flex-1 min-w-0 pr-4">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2 h-2 rounded-full ${flag.is_enabled ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]' : 'bg-neutral-600'}`}></span>
-                        <h3 className="font-mono font-semibold text-neutral-200 truncate">{flag.name}</h3>
-                      </div>
-                      {flag.description && (
-                        <p className="text-neutral-500 text-sm mt-1.5 ml-5 truncate">{flag.description}</p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => handleToggle(flag.id, flag.is_enabled)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          flag.is_enabled ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-neutral-500 hover:bg-neutral-800'
-                        }`}
-                        title={flag.is_enabled ? "Disable" : "Enable"}
-                      >
-                        {flag.is_enabled ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(flag.id)}
-                        className="text-neutral-600 hover:text-red-400 hover:bg-red-400/10 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                        title="Delete flag"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  <FlagCard
+                    key={flag.id}
+                    flag={flag}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             )}

@@ -89,3 +89,32 @@ def test_reject_non_object_json_payload(client):
     data = response.get_json()
     assert data["error"] == "Bad Request"
     assert "JSON body must be an object." in data["message"]
+
+
+def test_reject_invalid_flag_name_characters(client):
+    """Name pattern must be lowercase alphanumeric with underscores/hyphens only."""
+    response = client.post('/api/flags', json={"name": "My Invalid Flag!"})
+    assert response.status_code == 400
+    assert "messages" in response.get_json()
+
+
+def test_reject_whitespace_only_name(client):
+    """A whitespace-only name is not a valid identifier."""
+    response = client.post('/api/flags', json={"name": "   "})
+    assert response.status_code == 400
+    assert "messages" in response.get_json()
+
+
+def test_toggle_nonexistent_flag(client):
+    """Toggling a flag that does not exist must return 404."""
+    response = client.patch('/api/flags/9999', json={"is_enabled": True})
+    assert response.status_code == 404
+    assert "error" in response.get_json()
+
+
+def test_delete_nonexistent_flag(client):
+    """Deleting a flag that does not exist must return 404."""
+    response = client.delete('/api/flags/9999')
+    assert response.status_code == 404
+    assert "error" in response.get_json()
+

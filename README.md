@@ -74,7 +74,17 @@ pip install -r backend/requirements.txt
 flask --app backend.app:create_app run --port 8000
 ```
 
-### 2. Run the Test Suites
+### 2. Run Database Migrations (Alembic)
+```bash
+# Apply all pending migrations to the database
+alembic upgrade head
+
+# After changing backend/models.py, generate a new migration automatically:
+alembic revision --autogenerate -m "describe_your_change"
+alembic upgrade head
+```
+
+### 3. Run the Test Suites
 ```bash
 # Backend Test Check (In backend active env):
 python -m pytest backend/tests -v
